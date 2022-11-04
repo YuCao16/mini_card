@@ -1,0 +1,20 @@
+# ignore directories
+.ipynb_checkpoints/
+__pycache__/
+results/
+
+
+# OS generated files
+.DS_Store
+
+
+# file type
+*.txt
+*.pth
+*.pdf
+*.ipynb
+
+
+# IntelliJ IDEA
+.idea/
+*.iml

@@ -12,7 +12,7 @@ import torch.utils.tensorboard as tb
 import matplotlib.pyplot as plt
 import time
 from datetime import datetime, timezone, timedelta
-from utils import *
+from mini_utils import *
 
 torch.set_printoptions(sci_mode=False)
 
@@ -191,14 +191,41 @@ def parse_config():
 
     tb_path = os.path.join(args.exp, "tensorboard", args.doc)
 
-    if not args.test and not args.sample:
+    if args.test or args.sample:
+        args.im_path = (
+            os.path.join(args.exp, new_config.sampling.image_folder, args.doc)
+            if args.sample
+            else os.path.join(args.exp, new_config.testing.image_folder, args.doc)
+        )
+
+        level = getattr(logging, args.verbose.upper(), None)
+        if not isinstance(level, int):
+            raise ValueError(f"level {args.verbose} not supported")
+
+        handler1 = logging.StreamHandler()
+        # saving test metrics to a .txt file
+        handler2 = logging.FileHandler(os.path.join(args.log_path, "testmetrics.txt"))
+        formatter = logging.Formatter(
+            "%(levelname)s - %(filename)s - %(asctime)s - %(message)s"
+        )
+        handler1.setFormatter(formatter)
+        handler2.setFormatter(formatter)
+        logger = logging.getLogger()
+        logger.addHandler(handler1)
+        logger.addHandler(handler2)
+        logger.setLevel(level)
+
+        if args.sample or args.test:
+            os.makedirs(args.im_path, exist_ok=True)
+
+    else:
         args.im_path = os.path.join(
             args.exp, new_config.training.image_folder, args.doc
         )
-        new_config.diffusion.noise_prior = True if args.noise_prior else False
-        new_config.model.cat_y_pred = False if args.no_cat_f_phi else True
+        new_config.diffusion.noise_prior = bool(args.noise_prior)
+        new_config.model.cat_y_pred = not args.no_cat_f_phi
         if not args.resume_training:
-            if not args.timesteps is None:
+            if args.timesteps is not None:
                 new_config.diffusion.timesteps = args.timesteps
             if args.num_sample > 1:
                 new_config.diffusion.num_sample = args.num_sample
@@ -208,9 +235,7 @@ def parse_config():
                     overwrite = True
                 else:
                     response = input(
-                        "Folder {} already exists. Overwrite? (Y/N)".format(
-                            args.log_path
-                        )
+                        f"Folder {args.log_path} already exists. Overwrite? (Y/N)"
                     )
                     if response.upper() == "Y":
                         overwrite = True
@@ -238,7 +263,7 @@ def parse_config():
         # setup logger
         level = getattr(logging, args.verbose.upper(), None)
         if not isinstance(level, int):
-            raise ValueError("level {} not supported".format(args.verbose))
+            raise ValueError(f"level {args.verbose} not supported")
 
         handler1 = logging.StreamHandler()
         handler2 = logging.FileHandler(os.path.join(args.log_path, "stdout.txt"))
@@ -252,50 +277,20 @@ def parse_config():
         logger.addHandler(handler2)
         logger.setLevel(level)
 
-    else:
-        if args.sample:
-            args.im_path = os.path.join(
-                args.exp, new_config.sampling.image_folder, args.doc
-            )
-        else:
-            args.im_path = os.path.join(
-                args.exp, new_config.testing.image_folder, args.doc
-            )
-        level = getattr(logging, args.verbose.upper(), None)
-        if not isinstance(level, int):
-            raise ValueError("level {} not supported".format(args.verbose))
-
-        handler1 = logging.StreamHandler()
-        # saving test metrics to a .txt file
-        handler2 = logging.FileHandler(os.path.join(args.log_path, "testmetrics.txt"))
-        formatter = logging.Formatter(
-            "%(levelname)s - %(filename)s - %(asctime)s - %(message)s"
-        )
-        handler1.setFormatter(formatter)
-        handler2.setFormatter(formatter)
-        logger = logging.getLogger()
-        logger.addHandler(handler1)
-        logger.addHandler(handler2)
-        logger.setLevel(level)
-
-        if args.sample or args.test:
-            os.makedirs(args.im_path, exist_ok=True)
-
     # add device
     device_name = f"cuda:{args.device}" if torch.cuda.is_available() else "cpu"
     device = torch.device(device_name)
-    logging.info("Using device: {}".format(device))
+    logging.info(f"Using device: {device}")
     new_config.device = device
 
     # set number of threads
     if args.thread > 0:
         torch.set_num_threads(args.thread)
-        print("Using {} threads".format(args.thread))
+        print(f"Using {args.thread} threads")
 
     # set random seed
-    if args.run_all:
-        if new_config.data.dataset != "uci":
-            args.seed += 1  # apply a different seed for each run of toy example
+    if args.run_all and new_config.data.dataset != "uci":
+        args.seed += 1  # apply a different seed for each run of toy example
     set_random_seed(args.seed)
 
     torch.backends.cudnn.benchmark = True
@@ -311,7 +306,7 @@ def main():
     logging.info(f"Exp comment = {args.comment}")
 
     if args.loss == "card_conditional":
-        from card_regression import Diffusion
+        from mini_card_regression import Diffusion
     else:
         raise NotImplementedError("Invalid loss option")
 
@@ -371,7 +366,7 @@ if __name__ == "__main__":
             args.split = split
             # change "_split_" to "/split_" for future training
             # args.doc = original_doc + "_split_" + str(args.split)
-            args.doc = original_doc + "/split_" + str(args.split)
+            args.doc = f"{original_doc}/split_{str(args.split)}"
             if args.test:
                 args.config = original_config + args.doc + "/config.yml"
                 (
@@ -526,13 +521,13 @@ if __name__ == "__main__":
             # save metrics and model hyperparameters to a json file
             if not os.path.exists(res_file_path):
                 os.makedirs(res_file_path)
-            with open(res_file_path + f"/metrics_{timestr}.json", "w") as outfile:
+            with open(f"{res_file_path}/metrics_{timestr}.json", "w") as outfile:
                 json.dump(res_dict, outfile)
                 outfile.write("\n\nExperiment arguments:\n")
                 json.dump(args_dict, outfile)
             print("\nTest metrics saved in .json file.")
     else:
-        args.doc = args.doc + "/split_" + str(args.split)
+        args.doc = f"{args.doc}/split_{str(args.split)}"
         if args.test:
             args.config = args.config + args.doc + "/config.yml"
         sys.exit(main())

@@ -1122,24 +1122,34 @@ class Diffusion(object):
 
         #####################################################################################################
         ########################## local functions within the class function scope ##########################
+        #####################################################################################################
+
         def compute_prediction_SE(
             config, dataset_object, y_batch, generated_y, return_pred_mean=False
         ):
             """
+            Latex formula: $(\E[y_pred]-y_true)*2$
+
+            y_batch: y_true
             generated_y: has a shape of (current_batch_size, n_z_samples, dim_y)
+            return_pred_mean: return y_pred_mean instead of SE
             """
             low, high = config.testing.trimmed_mean_range
             y_true = y_batch.cpu().detach().numpy()
             y_pred_mean = None  # to be used to compute RMSE
+
             if low == 50 and high == 50:
                 y_pred_mean = np.median(
                     generated_y, axis=1
                 )  # use median of samples as the mean prediction
             else:  # compute trimmed mean (i.e. discarding certain parts of the samples at both ends)
                 generated_y.sort(axis=1)
-                low_idx = int(low / 100 * config.testing.n_z_samples)
+                low_idx = int(
+                    low / 100 * config.testing.n_z_samples
+                )  # n_z_samples: 1000
                 high_idx = int(high / 100 * config.testing.n_z_samples)
                 y_pred_mean = (generated_y[:, low_idx:high_idx]).mean(axis=1)
+
             if dataset_object.normalize_y:
                 y_true = dataset_object.scaler_y.inverse_transform(y_true).astype(
                     np.float32
@@ -1147,6 +1157,7 @@ class Diffusion(object):
                 y_pred_mean = dataset_object.scaler_y.inverse_transform(
                     y_pred_mean
                 ).astype(np.float32)
+
             if return_pred_mean:
                 return y_pred_mean
             else:
@@ -1156,8 +1167,10 @@ class Diffusion(object):
         def compute_true_coverage_by_gen_QI(
             config, dataset_object, all_true_y, all_generated_y, verbose=True
         ):
-            n_bins = config.testing.n_bins
+            n_bins = config.testing.n_bins  # 10
             quantile_list = np.arange(n_bins + 1) * (100 / n_bins)
+            # array([  0.,  10.,  20.,  30.,  40.,  50.,  60.,  70.,  80.,  90., 100.])
+
             # compute generated y quantiles
             y_pred_quantiles = np.percentile(
                 all_generated_y.squeeze(), q=quantile_list, axis=1
@@ -1165,6 +1178,7 @@ class Diffusion(object):
             y_true = all_true_y.T
             quantile_membership_array = ((y_true - y_pred_quantiles) > 0).astype(int)
             y_true_quantile_membership = quantile_membership_array.sum(axis=0)
+
             # y_true_quantile_bin_count = np.bincount(y_true_quantile_membership)
             y_true_quantile_bin_count = np.array(
                 [(y_true_quantile_membership == v).sum() for v in np.arange(n_bins + 2)]
@@ -1180,6 +1194,7 @@ class Diffusion(object):
                         + "and {} greater than max of generated y."
                     ).format(y_true_below_0, y_true_above_100)
                 )
+
             # combine true y falls outside of 0-100 gen y quantile to the first and last interval
             y_true_quantile_bin_count[1] += y_true_quantile_bin_count[0]
             y_true_quantile_bin_count[-2] += y_true_quantile_bin_count[-1]
@@ -1258,7 +1273,7 @@ class Diffusion(object):
                     ).astype(np.float32)
                 else:
                     y_test_unnorm = dataset_object.y_test
-                y_test_unnorm = (
+                y_test_unnorm: torch.Tensor = (
                     y_test_unnorm
                     if type(y_test_unnorm) is torch.Tensor
                     else torch.from_numpy(y_test_unnorm)
@@ -1338,6 +1353,7 @@ class Diffusion(object):
             num_workers=config.data.num_workers,
         )
         self.dataset_object = dataset_object
+
         # set global prevision value for NLL computation if needed
         if args.nll_global_var:
             set_NLL_global_precision(test_var=args.nll_test_var)
@@ -1375,6 +1391,7 @@ class Diffusion(object):
             )
             self.cond_pred_model.load_state_dict(aux_states[0], strict=True)
             self.cond_pred_model.eval()
+
         # report test set RMSE with guidance model
         y_rmse_aux_model = self.evaluate_guidance_model(dataset_object, test_loader)
         logging.info(

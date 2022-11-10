@@ -1,6 +1,6 @@
 import torch
 import os
-import utils
+import mini_utils as utils
 import numpy as np
 import pandas as pd
 import abc
@@ -168,3 +168,28 @@ class LinearDatasetWithOneX(DatasetWithOneX):
         super().create_y_from_one_x(noise_dict)
         # x_samples.shape = eps_samples.shape = [10240, 1]
         return self.a + self.b * self.x_samples + self.eps_samples
+
+
+def compute_y_noiseless_mean(dataset, x_test_batch, true_function="linear"):
+    """
+    Compute the mean of y with the ground truth data generation function.
+    """
+    if true_function == "linear":
+        y_true_mean = dataset.a + dataset.b * x_test_batch
+    elif true_function == "quadratic":
+        y_true_mean = (
+            dataset.a * x_test_batch.pow(2) + dataset.b * x_test_batch + dataset.c
+        )
+    elif true_function == "loglinear":
+        y_true_mean = (dataset.a + dataset.b * x_test_batch).exp()
+    elif true_function == "loglog":
+        y_true_mean = (np.log(dataset.a) + dataset.b * x_test_batch.log()).exp()
+    elif true_function == "mdnsinusoidal":
+        y_true_mean = x_test_batch + 0.3 * torch.sin(2 * np.pi * x_test_batch)
+    elif true_function == "sinusoidal":
+        y_true_mean = x_test_batch * torch.sin(x_test_batch)
+    else:
+        raise NotImplementedError(
+            "We don't have such data generation scheme for toy example."
+        )
+    return y_true_mean.numpy()

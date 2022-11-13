@@ -1,20 +1,21 @@
 import contextlib
+import gc
 import logging
+import math
+import sys
 import time
-
-import sys, math, gc
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.utils.data as data
-
 from scipy.special import logsumexp
+
 from ema import EMA
+from mini_diffusion_utils import *
 from mini_model import *
 from mini_utils import *
-from mini_diffusion_utils import *
 
 # from model import *
 # from utils import *
@@ -80,7 +81,7 @@ class Diffusion(object):
         )
         self.posterior_variance = posterior_variance
 
-        self.tau = None # precision fo test NLL computation
+        self.tau = None  # precision fo test NLL computation
 
         # TODO: add other conditioning signal such as OLS
         # Initial prediction model as guided condition

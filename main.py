@@ -1,17 +1,19 @@
 import argparse
-import traceback
-import shutil
-import logging
-import yaml
-import sys
-import os
 import json
-import torch
-import numpy as np
-import torch.utils.tensorboard as tb
-import matplotlib.pyplot as plt
+import logging
+import os
+import shutil
+import sys
 import time
-from datetime import datetime, timezone, timedelta
+import traceback
+from datetime import datetime, timedelta, timezone
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.utils.tensorboard as tb
+import yaml
+
 from mini_utils import *
 
 torch.set_printoptions(sci_mode=False)
@@ -298,7 +300,7 @@ def parse_config():
     return new_config, logger
 
 
-def main():
+def main() -> None:
     config, logger = parse_config()
 
     logging.info(f"Writing log file to {args.log_path}")
